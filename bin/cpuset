@@ -1,0 +1,109 @@
+#!/usr/bin/env ruby
+
+require 'rubygems'
+require 'cpuset'
+require 'pp'
+
+# eat first argument to ensure it is an action 
+usage = %{Usage: cpuset action [options]
+
+Where action is one of the following [create|delete|list|print|migrate]
+You can use help after an action for the action. For example:
+\tcpuset create help
+Will display the help options for the cretea action
+}
+
+valid_actions = ["create","delete","list","print","migrate"]
+action = ARGV.shift
+if  action.nil? or action.eql? "help" or not valid_actions.include? action
+    puts usage
+    exit  
+end
+
+action_option = ARGV.shift
+if action_option.eql? "help"
+    action_help = case action
+         when "create" then "Usage: cpuset create CPUSET
+\tWhere CPUSET is the name of the cpuset you would like to create
+\t# cpuset create ghost\t\tWill create a cpuset called ghost. Or,
+\t# cpuset create ghost/cat\tWill create a cpuset called cat under the ghost cpuset (ghost must be already defined)."
+         when "delete" then "Usage: cpuset delete CPUSET
+\tWhere CPUSET is the name of the cpuset you would like to delete
+\t# cpuset delete ghost/cat\tWill delete the cpuset cat (which is nested in th eghost cpuset"
+         when "list" then "Usage: cpuset list
+\tList of all currently set up cpusets
+\t# cpuset list\t\t\tWill list all available cpusets on the system"
+         when "print" then "Usage: cpuset print CPUSET
+\tPrint the tasks PIDS in the given cpuset
+\t# cpuset print ghost\t\tWill print all te pids of tasks in the ghost cpuset"
+         when "migrate" then "Usage: cpuset migrate CPUSET PID
+\tMigrate the task of pid number PID to CPUSET
+\t# cpuset migrate ghost/dog 3452\tWill migrate the task with pid 3452 to the dog cpuset. Or,
+\t# cpuset migrate ghost 4531\tWill migrate the task with the pid 4531 to the ghost cpuset"
+    end
+    puts action_help 
+    exit
+else 
+    ARGV.unshift action_option
+end 
+
+actions = {}
+case action
+    when "create" then 
+	    actions[:cpuset] = ARGV.shift
+    when "delete" then 
+	    actions[:cpuset] = ARGV.shift
+    when "print" then
+        actions[:cpuset] = ARGV.shift
+    when "migrate" then
+        actions[:cpuset] = ARGV.shift
+        actions[:pid]    = ARGV.shift
+end 
+
+# need to validate user input... or else!!
+unless actions[:cpuset].nil?
+    raise "Cpuset does not look legit! (you can only have number letters and /'s in cpusets" unless  actions[:cpuset] =~ /^[\w\/]+$/
+end
+unless actions[:pid].nil?
+    raise "PID does not look like a proper process ID (i.e., numbers only)" unless  actions[:pid] =~ /^\d+$/
+end
+
+if action.eql? "list" 
+    base = Cpuset.find_base_path
+    sets = Cpuset.list_cpusets
+    if sets.empty? 
+        puts "There are no extra cpusets configured,"
+        puts "all tasks are in the default cpuset: #{base}"
+    else
+        puts "Cpusets currently running on the system (base dir = #{base}):"
+        sets.each do |a|
+            puts "\t#{a}"
+        end
+    end 
+end
+
+if action.eql? "print"
+    cpu = Cpuset.get_tasks( actions[:cpuset] )
+    pp cpu
+    unless cpu.empty? 
+        puts "#######################"
+        puts "# tasks in #{actions[:cpuset]}"
+        puts "#######################"
+        cpu.each do |t|
+            puts "#{actions[:cpuset]}:\t#{t}\t"
+        end
+    end
+end
+
+if action.eql? "delete"
+    Cpuset.delete_cpuset( actions[:cpuset] )
+end
+
+if action.eql? "migrate"
+    Cpuset.migrate_tasks( actions[:pid] ,  actions[:cpuset] ) 
+end
+
+if action.eql? "create"
+    Cpuset.create_cpuset( actions[:cpuset] )
+end
+
