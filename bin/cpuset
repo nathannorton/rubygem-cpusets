@@ -4,6 +4,54 @@ require 'rubygems'
 require 'cpuset'
 require 'pp'
 
+
+def print_cpusets( cpuset ) 
+  tasks = Cpuset.get_tasks( cpuset ) 
+  cpus  = Cpuset.get_values( cpuset, "cpus" ) 
+
+  cpus  = enumerate_cpus( cpus ) 
+
+  unless tasks.empty?
+    tasks.each do |t| 
+      cmd = get_cmd_from_pid( t ).chomp
+      puts sprintf("%1$.15s\t%2$20s\t%3$.8s\t%4$.30s " , cpuset, cpus, t, cmd)
+    end
+  end 
+end
+
+def get_cmd_from_pid( pid ) 
+  cmdline = "/proc/#{pid}/comm"
+  ret = "" 
+  begin
+    File.open( cmdline , "r").each do |line|
+    if line.eql?("\n")
+      ret = ""
+    else
+      ret = line
+    end
+  end
+  rescue Exception => err
+    puts "Failed trying to query the command line of the process #{cmdline}, exiting"
+    puts "The exception was: #{err}"
+    exit
+  end
+
+  return  ret
+end
+
+def enumerate_cpus( list )
+  res = []
+  list.split(',').each do |l|
+    if l.include? "-"
+      l =~ /(\d+)-(\d+)/
+      res <<  ($1.to_i..$2.to_i).to_a
+    else
+      res << l.to_i
+    end
+  end
+  res.flatten!.join(',')
+end
+
 # eat first argument to ensure it is an action 
 usage = %{Usage: cpuset action [options]
 
@@ -85,12 +133,12 @@ end
 
 if action.eql? "print"
   if actions[:cpuset].eql? "all"
-    puts "CPUSET\tCPUS\tPID\tCMD"
+    puts sprintf("%1$.15s\t\t%2$20s\t%3$.8s\t%4$.30s " , "CPUSETS","CPUS","PID","CMD")
     Cpuset.list_cpusets.each do |set|
       print_cpusets( set ) 
     end
   else 
-    puts "CPUSET\tCPUS\tPID\tCMD"
+    puts sprintf("%1$.15s\t\t%2$20s\t%3$.8s\t%4$.30s " , "CPUSETS","CPUS","PID","CMD")
     print_cpusets( actions[:cpuset] )
   end
     
@@ -108,36 +156,3 @@ if action.eql? "create"
     Cpuset.create_cpuset( actions[:cpuset] )
 end
 
-
-def print_cpusets( cpuset ) 
-  tasks = Cpuset.get_tasks( cpuset ) 
-  cpus  = Cpuset.get_values( cpuset, "cpus" ) 
-
-
-  unless tasks.empty?
-    cmd = get_cmd_from_pid( pid )
-    tasks.each do |t| 
-      puts "#{cpuset}:\t#{cpus}\t#{tasks}\t#{cmd}"
-    end
-  end 
-end
-
-def get_cmd_from_pid( pid ) 
-  cmdline = "/proc/#{pid}/cmdline"
-  ret = "" 
-  begin
-    File.open( cmdline , "r").each do |line|
-    if line.eql?("\n")
-      ret = ""
-    else
-      ret = line
-    end
-  end
-  rescue Exception => err
-    puts "Failed trying to query the command line of the process #{cmdline}, exiting"
-    puts "The exception was: #{err}"
-    exit
-  end
-
-  return  ret.slice(0..12)
-end
