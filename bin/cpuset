@@ -14,7 +14,8 @@ def print_cpusets( cpuset )
   unless tasks.empty?
     tasks.each do |t| 
       cmd = get_cmd_from_pid( t ).chomp
-      puts sprintf("%1$.15s\t%2$20s\t%3$.8s\t%4$.30s " , cpuset, cpus, t, cmd)
+      core  = get_exact_cpu( t ) 
+      puts sprintf("%1$.15s\t%2$3s\t%3$20s\t%4$.8s\t%5$.30s " , cpuset, core, cpus, t, cmd)
     end
   end 
 end
@@ -39,6 +40,23 @@ def get_cmd_from_pid( pid )
   return  ret
 end
 
+def get_exact_cpu( pid )
+  cmdline = "/proc/#{pid}/status"
+  ret = ""
+  begin
+    File.open( cmdline , "r").each do |line|
+    if line =~ /Cpus_allowed_list:\s*([\S]+)/
+      ret =  $1
+    end
+  end
+  rescue Exception => err
+    puts "Failed trying to get the cpus the process is running on #{cmdline}, exiting"
+    puts "The exception was: #{err}"
+    exit
+  end
+  ret
+end
+
 def enumerate_cpus( list )
   res = []
   list.split(',').each do |l|
@@ -49,7 +67,7 @@ def enumerate_cpus( list )
       res << l.to_i
     end
   end
-  res.flatten!.join(',')
+  res.flatten.join(',')
 end
 
 # eat first argument to ensure it is an action 
@@ -133,12 +151,12 @@ end
 
 if action.eql? "print"
   if actions[:cpuset].eql? "all"
-    puts sprintf("%1$.15s\t\t%2$20s\t%3$.8s\t%4$.30s " , "CPUSETS","CPUS","PID","CMD")
+    puts sprintf("%1$.15s\t\t%2$3s\t\t%3$20s\t%4$.8s\t%5$.30s " , "CPUSETS", "CORE", "CPUS","PID","CMD")
     Cpuset.list_cpusets.each do |set|
       print_cpusets( set ) 
     end
   else 
-    puts sprintf("%1$.15s\t\t%2$20s\t%3$.8s\t%4$.30s " , "CPUSETS","CPUS","PID","CMD")
+    puts sprintf("%1$.15s\t\t%2$3s\t\t%3$20s\t%4$.8s\t%5$.30s " , "CPUSETS", "CORE", "CPUS","PID","CMD")
     print_cpusets( actions[:cpuset] )
   end
     

@@ -1,7 +1,7 @@
 
 Gem::Specification.new do |s|
   s.name        = 'cpuset'
-  s.version     = '0.0.12'
+  s.version     = '0.0.13'
   s.date        = '2012-04-24'
   s.summary     = "cpuset"
   s.description = "A simple ruby interface to the cgroup/cpuset control group"
